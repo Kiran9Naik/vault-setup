@@ -25,4 +25,4 @@ jobs:
         VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
         ROLE_ID: ${{ secrets.ROLE_ID }}
         SECRET_ID: ${{ secrets.SECRET_ID }}
-      run: python app.py
+      run: python python.py
