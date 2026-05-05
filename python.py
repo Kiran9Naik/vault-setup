@@ -23,7 +23,7 @@ if not client.is_authenticated():
 print("Authenticated successfully!")
 
 #  Read secret
-client.secrets.kv.v1.read_secret(
+secret = client.secrets.kv.v1.read_secret(
     path="secrets",
     mount_point="kv"
 )
