@@ -1,28 +1,39 @@
-🔐 Vault + CI/CD Integration (AppRole + GitHub Actions)
+# Vault + CI/CD Integration (AppRole + GitHub Actions)
 
 This project demonstrates a production-aligned secret delivery workflow using HashiCorp Vault integrated with a CI/CD pipeline.
 
-The focus is not just running Vault, but securely consuming secrets inside pipelines without exposing credentials.
+The focus is not only running Vault, but securely consuming secrets inside pipelines without exposing credentials.
 
-🚀 Architecture Overview
-Vault (Raft + TLS enabled)
-KV Secret Engine (v1)
-AppRole Authentication
-Python (hvac) client
-GitHub Actions pipeline
+## Architecture Overview
 
-👉 Secrets are fetched dynamically at runtime, not stored in code or pipeline.
+- Vault (Raft + TLS enabled)
+- KV Secret Engine (v1)
+- AppRole Authentication
+- Python (`hvac`) client
+- GitHub Actions pipeline
 
-⚙️ Prerequisites
-Vault installed and running
-TLS configured (self-signed or CA-based)
-Python 3.x
-GitHub repository
-🏗️ Step 1: Vault Configuration
-Enable AppRole
+> Secrets are fetched dynamically at runtime, not stored in code or pipeline.
+
+## Prerequisites
+
+- Vault installed and running
+- TLS configured (self-signed or CA-based)
+- Python 3.x
+- GitHub repository
+
+## Step 1: Vault Configuration
+
+### Enable AppRole
+
+```bash
 vault auth enable approle
-Create Policy
-# policy.hcl
+```
+
+### Create Policy
+
+Save this as `policy.hcl`:
+
+```hcl
 path "kv/secrets" {
   capabilities = ["read"]
 }
@@ -30,36 +41,64 @@ path "kv/secrets" {
 path "kv/secrets/*" {
   capabilities = ["read"]
 }
+```
 
-Apply:
+Apply the policy:
 
+```bash
 vault policy write myapp-policy policy.hcl
-Create AppRole
+```
+
+### Create AppRole
+
+```bash
 vault write auth/approle/role/myapp-role \
-    token_policies="myapp-policy" \
-    token_ttl=1h \
-    token_max_ttl=4h
-Get Role ID & Secret ID
+  token_policies="myapp-policy" \
+  token_ttl=1h \
+  token_max_ttl=4h
+```
+
+### Get Role ID and Secret ID
+
+```bash
 vault read auth/approle/role/myapp-role/role-id
-
 vault write -f auth/approle/role/myapp-role/secret-id
+```
 
-👉 Save:
+Save these values as GitHub Secrets or environment variables:
 
-ROLE_ID
-SECRET_ID
-🔐 Step 2: Store Secret (KV v1)
+- `ROLE_ID`
+- `SECRET_ID`
+
+## Step 2: Store Secret (KV v1)
+
+```bash
 vault kv put kv/secrets user="kiran" password="naik"
+```
 
-Verify:
+Verify the secret:
 
+```bash
 vault kv get kv/secrets
-🐍 Step 3: Python Application
+```
 
-Install dependency:
+## Step 3: Python Application
 
+### Install dependency
+
+```bash
 pip install hvac
-python.py
+```
+
+### Run Python script
+
+```bash
+python python.py
+```
+
+### Example `python.py`
+
+```python
 import hvac
 import os
 
@@ -93,11 +132,18 @@ data = secret["data"]
 
 print("User:", data["user"])
 print("Password:", data["password"])
-⚙️ Step 4: GitHub Actions Pipeline
-Add Secrets in GitHub
+```
 
-Go to:
-Repo → Settings → Secrets
+## Step 4: GitHub Actions Pipeline
+
+Add the following secrets to GitHub:
+
+- `VAULT_ADDR`
+- `ROLE_ID`
+- `SECRET_ID`
+
+Go to: `Repository` → `Settings` → `Secrets`.
+
 
 Add:
 
