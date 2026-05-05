@@ -28,7 +28,7 @@ secret = client.secrets.kv.v1.read_secret(
     mount_point="kv"
 )
 
-data = secret["data"]["data"]
+data = secret["data"]
 
 print("Username:", data["user"])
 print("Password:", data["password"])
