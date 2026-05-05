@@ -153,7 +153,7 @@ SECRET_ID
 Workflow File
 
 .github/workflows/vault.yml
-
+``` bash
 name: Vault Integration
 
 on:
@@ -182,6 +182,7 @@ jobs:
         ROLE_ID: ${{ secrets.ROLE_ID }}
         SECRET_ID: ${{ secrets.SECRET_ID }}
       run: python python.py
+```
 ⚠️ Common Issues & Fixes
 ❌ Using /ui in VAULT_ADDR
 https://IP:8200/ui   ❌
