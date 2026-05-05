@@ -5,21 +5,29 @@ VAULT_ADDR = os.getenv("VAULT_ADDR")
 ROLE_ID = os.getenv("ROLE_ID")
 SECRET_ID = os.getenv("SECRET_ID")
 
-# 👇 Disable SSL verification (temporary)
 client = hvac.Client(
     url=VAULT_ADDR,
-    verify=False
+    verify=False   # for self-signed cert
 )
 
+# ✅ Just call login (no need to capture response)
 client.auth.approle.login(
     role_id=ROLE_ID,
     secret_id=SECRET_ID
 )
 
-print("Authenticated:", client.is_authenticated())
+# ✅ Validate auth
+if not client.is_authenticated():
+    raise Exception("Vault authentication failed")
 
+print("Authenticated successfully!")
+
+# ✅ Read secret
 secret = client.secrets.kv.v2.read_secret_version(
     path="kv/secrets"
 )
 
-print(secret["data"]["data"])
+data = secret["data"]["data"]
+
+print("Username:", data["username"])
+print("Password:", data["password"])
