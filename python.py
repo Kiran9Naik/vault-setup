@@ -10,21 +10,22 @@ client = hvac.Client(
     verify=False   # for self-signed cert
 )
 
-# ✅ Just call login (no need to capture response)
+#  Just call login (no need to capture response)
 client.auth.approle.login(
     role_id=ROLE_ID,
     secret_id=SECRET_ID
 )
 
-# ✅ Validate auth
+#  Validate auth
 if not client.is_authenticated():
     raise Exception("Vault authentication failed")
 
 print("Authenticated successfully!")
 
-# ✅ Read secret
-secret = client.secrets.kv.v1.read_secret(
-    path="kv/secrets"
+#  Read secret
+client.secrets.kv.v1.read_secret(
+    path="secrets",
+    mount_point="kv"
 )
 
 data = secret["data"]["data"]
