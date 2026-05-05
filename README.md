@@ -136,7 +136,9 @@ print("Password:", data["password"])
 
 ## Step 4: GitHub Actions Pipeline
 
-Add the following secrets to GitHub:
+### Store GitHub secrets
+
+Add these repository secrets in GitHub:
 
 - `VAULT_ADDR`
 - `ROLE_ID`
@@ -144,100 +146,108 @@ Add the following secrets to GitHub:
 
 Go to: `Repository` → `Settings` → `Secrets`.
 
+### Example workflow file
 
-Add:
+Create `.github/workflows/vault.yml` with:
 
-VAULT_ADDR
-ROLE_ID
-SECRET_ID
-Workflow File
-
-.github/workflows/vault.yml
-``` bash
+```yaml
 name: Vault Integration
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   vault-job:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      run: pip install hvac
+      - name: Install dependencies
+        run: pip install hvac
 
-    - name: Run Python script
-      env:
-        VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
-        ROLE_ID: ${{ secrets.ROLE_ID }}
-        SECRET_ID: ${{ secrets.SECRET_ID }}
-      run: python python.py
+      - name: Run Python script
+        env:
+          VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+          ROLE_ID: ${{ secrets.ROLE_ID }}
+          SECRET_ID: ${{ secrets.SECRET_ID }}
+        run: python python.py
 ```
-⚠️ Common Issues & Fixes
-❌ Using /ui in VAULT_ADDR
-https://IP:8200/ui   ❌
-https://IP:8200      ✅
-❌ SSL Certificate Error
-SSLCertVerificationError
 
-✔ Fix:
+## Common Issues & Fixes
 
-verify=False  # for testing
+### Using `/ui` in `VAULT_ADDR`
 
-✔ Production:
+- `https://IP:8200/ui` ❌
+- `https://IP:8200` ✅
 
-Use CA cert or trusted certificate
-❌ AppRole Login Failure
-permission denied
+### SSL certificate error
 
-✔ Fix:
+If you see `SSLCertVerificationError`:
 
-Regenerate SECRET_ID
-Ensure policy attached
-Verify role exists
-❌ KV v1 vs v2 mismatch
-Engine	API Path
-KV v1	kv/secrets
-KV v2	kv/data/secrets
-🔍 Debugging Approach
+```python
+verify=False  # for testing only
+```
 
-Always validate in order:
+For production, use a CA-signed or trusted certificate.
 
-Vault CLI
-vault write auth/approle/login ...
-API
-curl -k https://IP:8200/v1/...
-Python
-CI Pipeline
-📈 Production Considerations
-Replace verify=False with CA validation
-Rotate SECRET_ID regularly
-Use short TTL tokens
-Restrict policies to least privilege
-🚀 Future Improvements
-AppRole → OIDC (GitHub → Vault)
-KV v1 → KV v2 (versioning support)
-Direct API → Vault Agent / Injector (Kubernetes)
-💡 Key Takeaway
+### AppRole login failure
+
+If you get `permission denied`:
+
+- Regenerate `SECRET_ID`
+- Ensure the policy is attached
+- Verify the AppRole exists
+
+### KV v1 vs KV v2 mismatch
+
+| Engine | API Path |
+| ------ | --------- |
+| KV v1  | `kv/secrets` |
+| KV v2  | `kv/data/secrets` |
+
+## Debugging approach
+
+Validate in this order:
+
+1. Vault CLI
+   - `vault write auth/approle/login ...`
+2. API
+   - `curl -k https://IP:8200/v1/...`
+3. Python
+4. CI pipeline
+
+## Production considerations
+
+- Replace `verify=False` with CA validation
+- Rotate `SECRET_ID` regularly
+- Use short TTL tokens
+- Restrict policies to least privilege
+
+## Future improvements
+
+- AppRole → OIDC (GitHub → Vault)
+- KV v1 → KV v2 (versioning support)
+- Direct API → Vault Agent / Injector (Kubernetes)
+
+## Key takeaway
 
 Vault setup is just the beginning.
 
-👉 The real value lies in:
+The real value lies in:
 
-Secure authentication
-Runtime secret retrieval
-CI/CD integration without exposure
-🧑‍💻 Author
+- Secure authentication
+- Runtime secret retrieval
+- CI/CD integration without exposure
+
+## Author
 
 KiranNaik Bukke
 Devops Engineer Engineer | DevOps | Cloud | Security
