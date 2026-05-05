@@ -1,126 +1,196 @@
-# vault-setup
+🔐 Vault + CI/CD Integration (AppRole + GitHub Actions)
 
-Vault HA Cluster on GCP (2-Node with Auto-Unseal)
-📌 Overview
+This project demonstrates a production-aligned secret delivery workflow using HashiCorp Vault integrated with a CI/CD pipeline.
 
-This project demonstrates setting up a 2-node HA Vault cluster using:
+The focus is not just running Vault, but securely consuming secrets inside pipelines without exposing credentials.
 
-HashiCorp Vault
-Google Cloud Platform
-Terraform (for infra)
-Raft storage (integrated storage)
-GCP KMS (auto-unseal)
-Internal + External TCP Load Balancer
-🏗 Architecture
-Client
-   ↓
-External TCP Load Balancer (Public IP:8200)
-   ↓
-Internal TCP Load Balancer
-   ↓
-Vault Node 1 (Active)
-Vault Node 2 (Standby)
+🚀 Architecture Overview
+Vault (Raft + TLS enabled)
+KV Secret Engine (v1)
+AppRole Authentication
+Python (hvac) client
+GitHub Actions pipeline
+
+👉 Secrets are fetched dynamically at runtime, not stored in code or pipeline.
+
 ⚙️ Prerequisites
-GCP project
-gcloud CLI configured
-Terraform installed
-SSH access to VM
-🚀 Step 1: Infrastructure Setup (Terraform)
-
-Create:
-
-VPC
-Subnet
-Firewall rules
-2 VM instances
-
-Example:
-
-resource "google_compute_instance" "vault" {
-  count        = 2
-  name         = "vault-instance-${count.index}"
-  machine_type = "e2-medium"
+Vault installed and running
+TLS configured (self-signed or CA-based)
+Python 3.x
+GitHub repository
+🏗️ Step 1: Vault Configuration
+Enable AppRole
+vault auth enable approle
+Create Policy
+# policy.hcl
+path "kv/secrets" {
+  capabilities = ["read"]
 }
-🔐 Step 2: Install Vault
-sudo apt update
-sudo apt install vault -y
+
+path "kv/secrets/*" {
+  capabilities = ["read"]
+}
+
+Apply:
+
+vault policy write myapp-policy policy.hcl
+Create AppRole
+vault write auth/approle/role/myapp-role \
+    token_policies="myapp-policy" \
+    token_ttl=1h \
+    token_max_ttl=4h
+Get Role ID & Secret ID
+vault read auth/approle/role/myapp-role/role-id
+
+vault write -f auth/approle/role/myapp-role/secret-id
+
+👉 Save:
+
+ROLE_ID
+SECRET_ID
+🔐 Step 2: Store Secret (KV v1)
+vault kv put kv/secrets user="kiran" password="naik"
 
 Verify:
 
-vault version
-🔑 Step 3: Create TLS Certificates
-openssl req -x509 -nodes -days 365 \
--newkey rsa:2048 \
--keyout vault-key.pem \
--out vault-cert.pem
+vault kv get kv/secrets
+🐍 Step 3: Python Application
 
-Move to:
+Install dependency:
 
-/opt/vault/tls/
-🔒 Step 4: Configure Vault
+pip install hvac
+python.py
+import hvac
+import os
 
-/etc/vault.d/vault.hcl
+VAULT_ADDR = os.getenv("VAULT_ADDR")
+ROLE_ID = os.getenv("ROLE_ID")
+SECRET_ID = os.getenv("SECRET_ID")
 
-disable_mlock = true
-ui = true
+client = hvac.Client(
+    url=VAULT_ADDR,
+    verify=False  # For self-signed cert (PoC)
+)
 
-storage "raft" {
-  path    = "/opt/vault/data"
-  node_id = "node-1"
-}
+# Authenticate using AppRole
+client.auth.approle.login(
+    role_id=ROLE_ID,
+    secret_id=SECRET_ID
+)
 
-listener "tcp" {
-  address         = "0.0.0.0:8200"
-  cluster_address = "0.0.0.0:8201"
+if not client.is_authenticated():
+    raise Exception("Vault authentication failed")
 
-  tls_cert_file = "/opt/vault/tls/vault-cert.pem"
-  tls_key_file  = "/opt/vault/tls/vault-key.pem"
-}
+print("Authenticated successfully!")
 
-seal "gcpckms" {
-  project     = "PROJECT_ID"
-  region      = "global"
-  key_ring    = "vault-keyring"
-  crypto_key  = "vault-key"
-  credentials = "/opt/vault/creds/gcp.json"
-}
-🔑 Step 5: Setup GCP KMS Auto-Unseal
-Create key ring
-Create crypto key
-Create service account
-Download JSON key
+# Read secret from KV v1
+secret = client.secrets.kv.v1.read_secret(
+    path="secrets",
+    mount_point="kv"
+)
 
-Place:
+data = secret["data"]
 
-/opt/vault/creds/gcp.json
-▶️ Step 6: Start Vault
-sudo systemctl start vault
-sudo systemctl enable vault
-🔐 Step 7: Initialize Vault
-export VAULT_ADDR=https://127.0.0.1:8200
-export VAULT_SKIP_VERIFY=true
+print("User:", data["user"])
+print("Password:", data["password"])
+⚙️ Step 4: GitHub Actions Pipeline
+Add Secrets in GitHub
 
-vault operator init
-🔗 Step 8: Join Node 2
-vault operator raft join https://NODE1_IP:8200
-⚖️ Step 9: Load Balancer Setup
-❗ Important
+Go to:
+Repo → Settings → Secrets
 
-Use TCP Load Balancer (Layer 4)
+Add:
 
-Internal LB
-Type: Internal TCP
-Port: 8200
-External LB
-Type: External TCP
-Port: 8200
-🌐 Step 10: Access Vault UI
-https://<EXTERNAL_LB_IP>:8200/ui/
-🧪 Health Check
-curl -k https://<LB_IP>:8200/v1/sys/health
-⚠️ Key Learnings
-Vault requires TCP Load Balancer
-HTTP LB breaks Vault due to TLS termination
-Internal LB is not publicly accessible
-TLS SAN is critical for browser access
-Auto-unseal still requires initial vault operator init
+VAULT_ADDR
+ROLE_ID
+SECRET_ID
+Workflow File
+
+.github/workflows/vault.yml
+
+name: Vault Integration
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  vault-job:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: pip install hvac
+
+    - name: Run Python script
+      env:
+        VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+        ROLE_ID: ${{ secrets.ROLE_ID }}
+        SECRET_ID: ${{ secrets.SECRET_ID }}
+      run: python python.py
+⚠️ Common Issues & Fixes
+❌ Using /ui in VAULT_ADDR
+https://IP:8200/ui   ❌
+https://IP:8200      ✅
+❌ SSL Certificate Error
+SSLCertVerificationError
+
+✔ Fix:
+
+verify=False  # for testing
+
+✔ Production:
+
+Use CA cert or trusted certificate
+❌ AppRole Login Failure
+permission denied
+
+✔ Fix:
+
+Regenerate SECRET_ID
+Ensure policy attached
+Verify role exists
+❌ KV v1 vs v2 mismatch
+Engine	API Path
+KV v1	kv/secrets
+KV v2	kv/data/secrets
+🔍 Debugging Approach
+
+Always validate in order:
+
+Vault CLI
+vault write auth/approle/login ...
+API
+curl -k https://IP:8200/v1/...
+Python
+CI Pipeline
+📈 Production Considerations
+Replace verify=False with CA validation
+Rotate SECRET_ID regularly
+Use short TTL tokens
+Restrict policies to least privilege
+🚀 Future Improvements
+AppRole → OIDC (GitHub → Vault)
+KV v1 → KV v2 (versioning support)
+Direct API → Vault Agent / Injector (Kubernetes)
+💡 Key Takeaway
+
+Vault setup is just the beginning.
+
+👉 The real value lies in:
+
+Secure authentication
+Runtime secret retrieval
+CI/CD integration without exposure
+🧑‍💻 Author
+
+KiranNaik Bukke
+Devops Engineer Engineer | DevOps | Cloud | Security
